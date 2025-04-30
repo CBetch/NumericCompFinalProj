@@ -104,8 +104,9 @@ class Event:
             lat_min, lat_max = lat_range
             lon_min, lon_max = lon_range
 
-            lat_inds = np.where((h_lat >= lat_min) & (h_lat <= lat_max))[0]
-            lon_inds = np.where((h_lon >= lon_min) & (h_lon <= lon_max))[0]
+            padding = 1.25  # half the grid spacing
+            lat_inds = np.where((h_lat >= lat_min - padding) & (h_lat <= lat_max + padding))[0]
+            lon_inds = np.where((h_lon >= lon_min - padding) & (h_lon <= lon_max + padding))[0]
 
             if len(lat_inds) == 0 or len(lon_inds) == 0:
                 raise ValueError("No matching lat/lon indices found in humidity grid")
@@ -129,6 +130,7 @@ class Event:
 
             if os.path.exists(file_path):
                 try:
+                    print(f"Processing file: {file_path}")
                     with xr.open_dataset(file_path) as ds:
                         if lats is None or lons is None:
                             all_lats = ds["lat"].values

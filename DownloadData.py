@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
 import pandas as pd
+from bs4 import BeautifulSoup
 
 
 
@@ -22,7 +23,7 @@ def download_mean_layer_temp(save_dir):
         return
 
     try:
-        print(f"temp(0/1) Downloading {url}...")
+        print(f"Downloading {url}...")
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
@@ -40,7 +41,7 @@ def download_mean_layer_temp(save_dir):
 #   monthly, 2.5deg resolution, brightness_temperature ()
 def download_upper_trop_humidity(save_dir, start_year=1998, end_year=2022):
     files_downloaded = 0
-    num_files = end_year-start_year
+    num_files = end_year-start_year + 1
     year = start_year
 
     while year <= end_year:
@@ -57,7 +58,7 @@ def download_upper_trop_humidity(save_dir, start_year=1998, end_year=2022):
             continue
 
         try:
-            print(f"humidity({files_downloaded}/{num_files}) Downloading {url}...")
+            print(f"Downloading {url}...")
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
@@ -76,7 +77,27 @@ def download_upper_trop_humidity(save_dir, start_year=1998, end_year=2022):
 # Download cmorph .zip files for a date range
 #   daily, 0.25deg resolution, mm/day precipitation rate
 
+def get_cmorph_tar(year, month):
+    base_url = f"https://www.ncei.noaa.gov/data/cmorph-high-resolution-global-precipitation-estimates/archive/daily/0.25deg/{year}/{int(month):02d}/"
 
+    # Step 1: Get HTML page contents
+    resp = requests.get(base_url)
+    if resp.status_code != 200:
+        print(f"Failed to access {base_url} (status {resp.status_code})")
+        return
+
+    # Step 2: Parse HTML and find the .tar link
+    soup = BeautifulSoup(resp.text, "html.parser")
+    tar_links = [a['href'] for a in soup.find_all('a', href=True) if a['href'].endswith('.tar')]
+
+    if not tar_links:
+        print("No .tar files found.")
+        return
+
+    # Usually only one .tar file per month
+    tar_name = tar_links[0]
+    full_url = base_url + tar_name
+    return full_url
 
 def download_cmorph_daily(start_date, end_date, save_dir):
     base_url = "https://www.ncei.noaa.gov/data/cmorph-high-resolution-global-precipitation-estimates/archive/daily/0.25deg"
@@ -84,7 +105,7 @@ def download_cmorph_daily(start_date, end_date, save_dir):
     end = datetime.strptime(end_date, "%Y-%m-%d")
 
     files_downloaded = 0
-    num_files = (start_date.year - end_date.year) * 12 + (end_date.month - start_date.month) + 1
+    num_files = (end.year - date.year) * 12 + (end.month - date.month) + 1
 
     os.makedirs(save_dir, exist_ok=True)
 
@@ -97,8 +118,8 @@ def download_cmorph_daily(start_date, end_date, save_dir):
         last_day = (next_month - timedelta(days=next_month.day)).day
         end_str = f"{year}{month}{last_day:02d}"
 
-        filename = f"cmorph_v1.0_0.25deg_daily_s{start_str}_e{end_str}_c20180728.tar"
-        url = f"{base_url}/{year}/{month}/{filename}"
+        filename = f"cmorph_v1.0_0.25deg_daily_s{start_str}_e{end_str}_c20180808.tar"
+        url = get_cmorph_tar(year, month)
         save_path = os.path.join(save_dir, filename)
 
         if os.path.exists(save_path):
@@ -108,7 +129,7 @@ def download_cmorph_daily(start_date, end_date, save_dir):
             continue
 
         try:
-            print(f"precip({files_downloaded}/{num_files}) Downloading {url}...")
+            print(f"Downloading {url}...")
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
@@ -143,4 +164,7 @@ def download_and_extract_data():
     download_mean_layer_temp("./data/temperature")
     download_upper_trop_humidity("./data/humidity")
     download_cmorph_daily("1998-01-01", "2022-12-31", "./data/cmorph")
+    extract_nc_files("./data/cmorph")
+
+def extract_data_only():
     extract_nc_files("./data/cmorph")
